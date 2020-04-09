@@ -13,7 +13,7 @@ using OpenMcdf;
 //
 // Author: Kees van Spelde <sicos2002@hotmail.com>
 //
-// Copyright (c) 2013-2019 Magic-Sessions. (www.magic-sessions.com)
+// Copyright (c) 2013-2020 Magic-Sessions. (www.magic-sessions.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -110,8 +110,7 @@ namespace OfficeExtractor
         /// <exception cref="OEFileIsCorrupt">Raised when the <paramref name="rootStorage"/> does not have a Workbook stream</exception>
         internal void SetWorkbookVisibility(CFStorage rootStorage)
         {
-            var stream = rootStorage.TryGetStream("WorkBook");
-            if (stream == null)
+            if (!rootStorage.TryGetStream("WorkBook", out var stream))
                 throw new OEFileIsCorrupt("Could not check workbook visibility because the WorkBook stream is not present");
 
             Logger.WriteToLog("Setting hidden Excel workbook to visible");

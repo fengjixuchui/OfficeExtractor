@@ -8,7 +8,7 @@ using OpenMcdf;
 //
 // Author: Kees van Spelde <sicos2002@hotmail.com>
 //
-// Copyright (c) 2013-2019 Magic-Sessions. (www.magic-sessions.com)
+// Copyright (c) 2013-2020 Magic-Sessions. (www.magic-sessions.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -102,6 +102,8 @@ namespace OfficeExtractor.Ole
             {
                 case "OLE Package":
                     var olePackageSize = (int) ole10Native.Size - 4;
+                    if (olePackageSize <= 0)
+                        break;
                     var olePackageData = new byte[olePackageSize];
                     ole10Native.Read(olePackageData, 4, olePackageSize);
                     var package = new Package(olePackageData);
@@ -112,7 +114,10 @@ namespace OfficeExtractor.Ole
                     break;
 
                 case "PBrush":
+                case "Paintbrush-afbeelding":
                     var pbBrushSize = (int)ole10Native.Size - 4;
+                    if (pbBrushSize <= 0)
+                        break;
                     var pbBrushData = new byte[pbBrushSize];
                     ole10Native.Read(pbBrushData, 4, pbBrushSize);
                     FileName = "Embedded PBrush image.bmp";

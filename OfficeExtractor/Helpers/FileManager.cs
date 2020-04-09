@@ -2,13 +2,14 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 //
 // FileManager.cs
 //
 // Author: Kees van Spelde <sicos2002@hotmail.com>
 //
-// Copyright (c) 2013-2019 Magic-Sessions. (www.magic-sessions.com)
+// Copyright (c) 2013-2020 Magic-Sessions. (www.magic-sessions.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -38,29 +39,98 @@ namespace OfficeExtractor.Helpers
     {
         #region Consts
         /// <summary>
-        /// The max path length in Windows
+        /// De maximale pad lengte in Windows
         /// </summary>
         private const int MaxPath = 248;
+
+        /// <summary>
+        /// De maximale lengte voor een bestandsnaam
+        /// </summary>
+        private const int MaxFileNameLength = 255;
         #endregion
 
-        #region CheckForBackSlash
+        #region CheckForDirectorySeparator
         /// <summary>
-        /// Check if there is a backslash at the end of the string and if not add it
+        /// Check if there is a directory separator char at the end of the string and if not add it
         /// </summary>
         /// <param name="line"></param>
         /// <returns></returns>
-        public static string CheckForBackSlash(string line)
+        public static string CheckForDirectorySeparator(string line)
         {
-            if (line.EndsWith("\\"))
+            var separator = Path.DirectorySeparatorChar.ToString();
+
+            if (line.EndsWith(separator))
                 return line;
 
-            return line + "\\";
+            return line + separator;
+        }
+        #endregion
+
+        #region FileExistsMakeNew
+        /// <summary>
+        /// Checks if a file already exists and if so adds a number until the file is unique
+        /// </summary>
+        /// <param name="fileName">The file to check</param>
+        /// <param name="validateLongFileName">When true validation will be performed on the max path lengt</param>
+        /// <param name="extraTruncateSize"></param>
+        /// <returns></returns>
+        /// <exception cref="ArgumentException">Raised when no path or file name is given in the <paramref name="fileName"/></exception>
+        /// <exception cref="PathTooLongException">Raised when it is not possible to truncate the <paramref name="fileName"/></exception>
+        public static string FileExistsMakeNew(string fileName, bool validateLongFileName = true,
+            int extraTruncateSize = -1)
+        {
+            var tempFileName = fileName;
+            var fileNameWithoutExtension = GetFileNameWithoutExtension(fileName);
+            var extension = GetExtension(fileName);
+            var path = CheckForDirectorySeparator(GetDirectoryName(fileName));
+
+            if (fileNameWithoutExtension.Length + extension.Length > MaxFileNameLength)
+            {
+                fileNameWithoutExtension = fileNameWithoutExtension.Substring(0, MaxFileNameLength - extension.Length);
+                tempFileName = path + fileName;
+            }
+
+            tempFileName = validateLongFileName ? ValidateLongFileName(tempFileName, extraTruncateSize) : tempFileName;
+
+            var i = 2;
+            while (File.Exists(tempFileName))
+            {
+                tempFileName = path + fileNameWithoutExtension + "_" + i + extension;
+                tempFileName = validateLongFileName
+                    ? ValidateLongFileName(tempFileName, extraTruncateSize)
+                    : tempFileName;
+                i += 1;
+            }
+
+            return tempFileName;
+        }
+        #endregion
+
+        #region RemoveInvalidCharsFromFileName
+        /// <summary>
+        /// Removes illegal filename characters
+        /// </summary>
+        /// <param name="fileName"></param>
+        /// <returns></returns>
+        public static string RemoveInvalidFileNameChars(string fileName)
+        {
+            if (string.IsNullOrEmpty(fileName))
+                return fileName;
+
+            var result = Path.GetInvalidFileNameChars()
+                .Aggregate(fileName, (current, c) => current.Replace(c.ToString(CultureInfo.InvariantCulture), "_"));
+
+            result = result.Replace(",", string.Empty);
+
+            return result;
         }
         #endregion
 
         #region ValidateLongFileName
         /// <summary>
-        /// Validates the length of <paramref name="fileName"/>, when this is longer then <see cref="MaxPath"/> chars it will be truncated.
+        /// Validates the length of <paramref name="fileName"/>, when this is longer then
+        /// 260 chars it will be truncated.
+        /// zodat deze wel past
         /// </summary>
         /// <param name="fileName">The filename with path</param>
         /// <param name="extraTruncateSize">Optional extra truncate size, when not used the filename is truncated until it fits</param>
@@ -71,8 +141,8 @@ namespace OfficeExtractor.Helpers
         {
             var fileNameWithoutExtension = GetFileNameWithoutExtension(fileName);
 
-            if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
-                throw new ArgumentException(@"No file name is given, e.g. c:\temp\temp.txt", nameof(fileName));
+            //if (string.IsNullOrWhiteSpace(fileNameWithoutExtension))
+            //    throw new ArgumentException(@"No file name is given, e.g. c:\temp\temp.txt", nameof(fileName));
 
             var extension = GetExtension(fileName);
 
@@ -84,7 +154,7 @@ namespace OfficeExtractor.Helpers
             if (string.IsNullOrWhiteSpace(path))
                 throw new ArgumentException(@"No path is given, e.g. c:\temp\temp.txt", nameof(fileName));
 
-            path = CheckForBackSlash(path);
+            path = CheckForDirectorySeparator(path);
 
             if (fileName.Length <= MaxPath)
                 return fileName;
@@ -172,67 +242,32 @@ namespace OfficeExtractor.Helpers
         }
         #endregion
 
-        #region FileExistsMakeNew
+        #region IsValidPath
         /// <summary>
-        /// Checks if a file already exists and if so adds a number until the file is unique
+        /// Controleert of het opgegeven pad valide is. Er wordt niet gecontroleerd of het pad ook
+        /// echt bestaat
         /// </summary>
-        /// <param name="fileName">The file to check</param>
-        /// <param name="validateLongFileName">When true validation will be performed on the max path lengt</param>
-        /// <param name="extraTruncateSize"></param>
+        /// <param name="path"></param>
         /// <returns></returns>
-        /// <exception cref="ArgumentException">Raised when no path or file name is given in the <paramref name="fileName"/></exception>
-        /// <exception cref="PathTooLongException">Raised when it is not possible to truncate the <paramref name="fileName"/></exception>
-        public static string FileExistsMakeNew(string fileName, bool validateLongFileName = true, int extraTruncateSize = -1)
+        public static bool IsValidPath(string path)
         {
-            var fileNameWithoutExtension = GetFileNameWithoutExtension(fileName);
-            var extension = GetExtension(fileName);
-            var path = CheckForBackSlash(GetDirectoryName(fileName));
+            var regex = new Regex(@"^(([a-zA-Z]\:)|(\\))(\\{1}|((\\{1})[^\\]([^/:*?<>""|]*))+)$");
+            var result = regex.IsMatch(path);
 
-            var tempFileName = validateLongFileName ? ValidateLongFileName(fileName, extraTruncateSize) : fileName;
-
-            var i = 2;
-            while (File.Exists(tempFileName))
+            if (result)
             {
-                tempFileName = path + fileNameWithoutExtension + "_" + i + extension;
-                tempFileName = validateLongFileName ? ValidateLongFileName(tempFileName, extraTruncateSize) : tempFileName;
-                i += 1;
+                try
+                {
+                    // ReSharper disable once ReturnValueOfPureMethodIsNotUsed
+                    Path.GetFullPath(path);
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
             }
 
-            return tempFileName;
-        }
-        #endregion
-
-        #region RemoveInvalidFileNameChars
-        /// <summary>
-        /// Removes illegal filename characters
-        /// </summary>
-        /// <param name="fileName"></param>
-        /// <returns></returns>
-        public static string RemoveInvalidFileNameChars(string fileName)
-        {
-            return Path.GetInvalidFileNameChars().Aggregate(fileName, (current, c) => current.Replace(c.ToString(CultureInfo.InvariantCulture), string.Empty));
-        }
-        #endregion
-
-        #region GetFileSizeString
-        /// <summary>
-        /// Gives the size of a file in Windows format (GB, MB, KB, Bytes)
-        /// </summary>
-        /// <param name="bytes">Filesize in bytes</param>
-        /// <returns></returns>
-        public static string GetFileSizeString(double bytes)
-        {
-            var size = "0 Bytes";
-            if (bytes >= 1073741824.0)
-                size = String.Format(CultureInfo.InvariantCulture, "{0:##.##}", bytes / 1073741824.0) + " GB";
-            else if (bytes >= 1048576.0)
-                size = String.Format(CultureInfo.InvariantCulture, "{0:##.##}", bytes / 1048576.0) + " MB";
-            else if (bytes >= 1024.0)
-                size = String.Format(CultureInfo.InvariantCulture, "{0:##.##}", bytes / 1024.0) + " KB";
-            else if (bytes > 0 && bytes < 1024.0)
-                size = bytes + " Bytes";
-
-            return size;
+            return result;
         }
         #endregion
     }

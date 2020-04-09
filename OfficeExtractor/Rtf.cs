@@ -11,7 +11,7 @@ using Path = System.IO.Path;
 //
 // Author: Kees van Spelde <sicos2002@hotmail.com>
 //
-// Copyright (c) 2013-2019 Magic-Sessions. (www.magic-sessions.com)
+// Copyright (c) 2013-2020 Magic-Sessions. (www.magic-sessions.com)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -189,8 +189,7 @@ namespace OfficeExtractor
             using (var compoundFile = new CompoundFile(internalStream))
             {
                 string fileName = null;
-                var attachDescStream = compoundFile.RootStorage.TryGetStream("AttachDesc");
-                if (attachDescStream != null)
+                if(compoundFile.RootStorage.TryGetStream("AttachDesc", out var attachDescStream))
                     fileName = GetFileNameFromAttachDescStream(attachDescStream);
 
                 if (string.IsNullOrEmpty(fileName))
@@ -200,12 +199,10 @@ namespace OfficeExtractor
                 fileName = Path.Combine(outputFolder, fileName);
                 fileName = FileManager.FileExistsMakeNew(fileName);
 
-                var attachContentsStream = compoundFile.RootStorage.TryGetStream("AttachContents");
-                if (attachContentsStream != null)
+                if (compoundFile.RootStorage.TryGetStream("AttachContents", out var attachContentsStream))
                     return Extraction.SaveByteArrayToFile(attachContentsStream.GetData(), fileName);
 
-                var mapiMessageStorage = compoundFile.RootStorage.TryGetStorage("MAPIMessage");
-                if (mapiMessageStorage != null)
+                if(compoundFile.RootStorage.TryGetStorage("MAPIMessage", out var mapiMessageStorage))
                 {
                     fileName = Path.Combine(outputFolder, fileName);
                     return Extraction.SaveStorageTreeToCompoundFile(mapiMessageStorage, fileName);
